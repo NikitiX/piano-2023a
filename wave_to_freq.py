@@ -1,9 +1,9 @@
+import numpy as np #numpy
 import csv
 from matplotlib import pyplot as plt
 from scipy.io.wavfile import read
 from scipy.fft import rfft, rfftfreq
 from scipy.interpolate import interp1d
-import numpy as np
 
 fname = '3.wav'
 chunksize = 2 ** 12
