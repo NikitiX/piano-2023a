@@ -169,36 +169,3 @@ class FFT:
 
         # code goes here
 
-def main():
-    fname = '3_short.wav'
-
-    fft = FFT(fname)
-
-    
-    freq = 100
-    xf = fft.get_time_scale()
-    print('freq',freq)
-    func = fft.get_amplitude_function(freq)
-    yf = [func(i) for i in xf]
-    plt.title('FREQUENCY: ' + str(round(freq,2)) + ' Hz')
-    plt.plot(xf,yf)
-    plt.xlim(0,fft.time_length)
-    plt.ylim(0,max(yf) * 1.4)
-    plt.show()
-    
-
-    time = 0.1
-    print('time',time)
-    xf = fft.get_freq_scale()
-    func = fft.get_freq_function(time)
-    yf = [func(i) for i in xf]
-    plt.title('TIME: ' + str(round(time,2)) + ' s')
-    plt.plot(xf,yf)
-    plt.xlim(0,xf[-1])
-    plt.ylim(0,max(yf) * 1.4)
-    plt.show()
-
-    
-    
-if __name__ == '__main__':
-    main()
