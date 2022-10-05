@@ -19,14 +19,12 @@ class WavesGenerator:
 
     def generate(self, sample_rate=44100, duration=5):
         """Generate sum of sin waves from self.frequencies data
-
         Parameters
         ----------
         sample_rate : int
             The number of samples per second.
         duration : int
             Duration of signal. In seconds.
-
         Returns
         -------
         x : numpy.ndarray
@@ -44,7 +42,6 @@ class WavesGenerator:
 
     def save(self, file_name="sin_waves.wav", sample_rate=44100, duration=5, scale=1):
         """Generate sum of sin waves and save to file
-
         Parameters
         ----------
         file_name : str

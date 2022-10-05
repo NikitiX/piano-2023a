@@ -54,7 +54,7 @@ class FFT:
         
         self.freqs = rfftfreq(self.chunk_size, 1 / self.samplerate)     # freq scale for FFT
         self.window_results = [None for _ in range(self.wnd_amount)]    # FFT results
-        counts = [0] * self.wnd_amount                                  # how many chunks intersect with each window (needed for calculating average)
+        counts = np.zeros(self.wnd_amount)                              # how many chunks intersect with each window (needed for calculating average)
         prev_time = 0.99
 
         for offset in range(0,self.length - self.chunk_size,self.window_size): # Iterate through every chunk with the step of window_size
@@ -160,12 +160,22 @@ class FFT:
         return func
 
     def get_freq_map(self):
-        '''For each frequency, returns its function of amplitude from time.
-        Not implemented yet.'''
+        '''For each frequency, returns its function of amplitude from time.'''
 
         # Use cache
         if self.freq_map is not None:
             return self.freq_map
 
-        # code goes here
+        d = {}
+        prev_freq = 999
+        for freq in self.freqs:
+            # Progress report
+            if freq % 1000 < prev_freq % 1000:
+                print(freq,'Hz')
+            prev_freq = freq
+            
+            d[freq] = self.get_amplitude_function(freq)
+            
+        self.freq_map = d
+        return d
 

@@ -14,6 +14,7 @@ def read_from_file():
     return FFT('95326__ramas26__a.wav')
 
 def read_from_sines():
+    '''
     gen = WavesGenerator()
     gen.add_freq(100, 10000)
     gen.add_freq(200, 20000)
@@ -21,6 +22,7 @@ def read_from_sines():
     gen.add_freq(1000, 7500)
     gen.add_freq(2000, 3750)
     gen.save(duration=1, scale=0.5)
+    '''
     return FFT('sin_waves.wav')
 
 
@@ -46,8 +48,21 @@ def freq_func_test(fft, time):
     plt.ylim(0,max(yf) * 1.4)
     plt.show()
 
+def freq_map_test(fft, freq):
+    print('map_freq',freq)
+    xf = fft.get_time_scale()
+    fmap = fft.get_freq_map()
+    func = fmap[freq]
+    yf = func(xf)
+    plt.title('FREQUENCY: ' + str(round(freq,2)) + ' Hz')
+    plt.plot(xf,yf)
+    plt.xlim(0,fft.time_length)
+    plt.ylim(0,max(yf) * 1.4)
+    plt.show()
+
 fft = read_from_sines()
-amp_func_test(fft, 500)
+amp_func_test(fft, 721.3623046875)
+freq_map_test(fft, 721.3623046875)
 freq_func_test(fft, 0.1)
 fft = read_from_file()
 amp_func_test(fft, 440)
