@@ -9,6 +9,7 @@ Does not cover:
 from fft import FFT
 from sine_waves.generate_sin_waves import WavesGenerator
 from matplotlib import pyplot as plt
+import numpy as np
 
 def read_from_file():
     return FFT('95326__ramas26__a.wav')
@@ -61,9 +62,15 @@ def freq_map_test(fft, freq):
     plt.show()
 
 fft = read_from_sines()
-amp_func_test(fft, 721.3623046875)
-freq_map_test(fft, 721.3623046875)
-freq_func_test(fft, 0.1)
-fft = read_from_file()
-amp_func_test(fft, 440)
-freq_func_test(fft, 0.1)
+freq_func_test(fft, 0.5)
+'''
+xf = fft.get_time_scale()
+for freq in {100, 200, 500, 1000, 2000, 150, 50, 505, 1001, 1002}:
+    yf = fft.get_amplitude_function(freq)(xf)
+    print(freq, np.average(yf))
+    plt.title('FREQUENCY: ' + str(round(freq,2)) + ' Hz')
+    plt.plot(xf,yf)
+    plt.xlim(0,fft.time_length)
+    plt.ylim(0,max(yf) * 1.4)
+    plt.show()
+'''

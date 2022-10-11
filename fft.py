@@ -19,6 +19,21 @@ class Interp:
             return [self.value(i) for i in x]
         return self.value(x)
 
+def fft(f):
+    n = len(f) - 1
+    fft = []
+    for k in range(n):
+        if k % 1000 == 0:
+            print(k,n)
+        t = np.linspace(0, 2 * np.pi * k, n + 1)
+        intsin = np.sum(f * np.sin(t))
+        a = intsin / n
+        
+        intcos = np.sum(f * np.cos(t))
+        b = intcos / n
+        fft += [complex(a,b)]
+    return np.array(fft)
+
 class FFT:
     '''Class for processing .wav files using Fast Fourier Transform.'''
     def __init__(self, fname, ws = 16,wch = 256):
@@ -52,8 +67,8 @@ class FFT:
     def process_file(self):
         '''Processes the file, determining frequency components for each window.'''
         
-        self.freqs = rfftfreq(self.chunk_size, 1 / self.samplerate)     # freq scale for FFT
-        self.window_results = [None for _ in range(self.wnd_amount)]    # FFT results
+        self.freqs = np.linspace(0, self.samplerate / 2, self.chunk_size, endpoint=False)[1:]     # freq scale for FFT
+        self.window_results = [np.zeros(self.chunk_size - 1,dtype=complex) for _ in range(self.wnd_amount)]    # FFT results
         counts = np.zeros(self.wnd_amount)                              # how many chunks intersect with each window (needed for calculating average)
         prev_time = 0.99
 
@@ -67,17 +82,14 @@ class FFT:
             prev_time = time
 
             # Run the FFT
-            yf = np.abs(rfft(chunk))
+            yf = fft(chunk)
 
             # Save the results in respective windows
             # Each chunk covers (windows_in_chunk) windows, starting from its index
             wnd_offset = offset // self.window_size     # chunk index / first window index
             for j in range(wnd_offset, min(self.wnd_amount, wnd_offset + self.windows_in_chunk)):
                 counts[j] += 1
-                if self.window_results[j] is None:
-                    self.window_results[j] = np.array(yf)
-                else:
-                    self.window_results[j] += yf
+                self.window_results[j] += yf
 
             # No future chunks will affect the window we just processed, so we can transform it into an Interp
             self.transform(wnd_offset, min(self.windows_in_chunk,wnd_offset + 1))
@@ -89,7 +101,7 @@ class FFT:
     def transform(self, offset, count):
         '''Used inside process_file to turn an element of window_results into a more convenient to use structure
         np.array of frequency amplitudes ---> Interp(freq) = amplitude'''
-        
+        print(len(self.freqs),len(self.window_results[offset]))
         self.window_results[offset] = Interp(
             self.freqs,
             self.window_results[offset] / count)
