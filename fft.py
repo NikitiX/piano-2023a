@@ -20,17 +20,16 @@ class Interp:
         return self.value(x)
 
 def fft(f):
-    n = len(f) - 1
+    n = (len(f) // 2) - 1
     fft = []
     for k in range(n):
-        if k % 1000 == 0:
-            print(k,n)
-        t = np.linspace(0, 2 * np.pi * k, n + 1)
+        t = np.linspace(0, 2 * np.pi * k, 2 * n + 2)
         intsin = np.sum(f * np.sin(t))
         a = intsin / n
         
         intcos = np.sum(f * np.cos(t))
         b = intcos / n
+        print(k,a,b)
         fft += [complex(a,b)]
     return np.array(fft)
 
@@ -67,8 +66,8 @@ class FFT:
     def process_file(self):
         '''Processes the file, determining frequency components for each window.'''
         
-        self.freqs = np.linspace(0, self.samplerate / 2, self.chunk_size, endpoint=False)[1:]     # freq scale for FFT
-        self.window_results = [np.zeros(self.chunk_size - 1,dtype=complex) for _ in range(self.wnd_amount)]    # FFT results
+        self.freqs = np.linspace(0, self.samplerate / 2, self.chunk_size // 2, endpoint=False)[1:]     # freq scale for FFT
+        self.window_results = [np.zeros((self.chunk_size // 2) - 1,dtype=complex) for _ in range(self.wnd_amount)]    # FFT results
         counts = np.zeros(self.wnd_amount)                              # how many chunks intersect with each window (needed for calculating average)
         prev_time = 0.99
 
@@ -76,6 +75,7 @@ class FFT:
             chunk = self.data[offset : offset + self.chunk_size]
 
             # Progress report
+            print(offset)
             time = offset / self.samplerate
             if time % 0.01 < prev_time % 0.01:
                 print(round(time,2),'s')
@@ -101,10 +101,15 @@ class FFT:
     def transform(self, offset, count):
         '''Used inside process_file to turn an element of window_results into a more convenient to use structure
         np.array of frequency amplitudes ---> Interp(freq) = amplitude'''
-        print(len(self.freqs),len(self.window_results[offset]))
-        self.window_results[offset] = Interp(
-            self.freqs,
-            self.window_results[offset] / count)
+        print(len(self.freqs),len(self.window_results[offset]), count)
+        if count == 0:
+            self.window_results[offset] = Interp(
+                self.freqs,
+                np.zeros(len(self.freqs)))
+        else:
+            self.window_results[offset] = Interp(
+                self.freqs,
+                self.window_results[offset] / count)
 
     def get_freq_scale(self):
         return self.freqs

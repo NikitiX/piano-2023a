@@ -24,14 +24,14 @@ def read_from_sines():
     gen.add_freq(2000, 3750)
     gen.save(duration=1, scale=0.5)
     '''
-    return FFT('sin_waves.wav')
+    return FFT('sin_waves_short.wav')
 
 
 def amp_func_test(fft, freq):
     print('freq',freq)
     xf = fft.get_time_scale()
     func = fft.get_amplitude_function(freq)
-    yf = func(xf)
+    yf = np.abs(func(xf))
     plt.title('FREQUENCY: ' + str(round(freq,2)) + ' Hz')
     plt.plot(xf,yf)
     plt.xlim(0,fft.time_length)
@@ -42,7 +42,7 @@ def freq_func_test(fft, time):
     print('time',time)
     xf = fft.get_freq_scale()
     func = fft.get_freq_function(time)
-    yf = func(xf)
+    yf = np.abs(func(xf))
     plt.title('TIME: ' + str(round(time,2)) + ' s')
     plt.plot(xf,yf)
     plt.xlim(0,xf[-1])
@@ -62,7 +62,7 @@ def freq_map_test(fft, freq):
     plt.show()
 
 fft = read_from_sines()
-freq_func_test(fft, 0.5)
+freq_func_test(fft, 0.05)
 '''
 xf = fft.get_time_scale()
 for freq in {100, 200, 500, 1000, 2000, 150, 50, 505, 1001, 1002}:
