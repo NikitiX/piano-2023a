@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.io.wavfile import read as read_wave
+from scipy.io import wavfile
 from scipy.fft import rfft, rfftfreq
 from scipy.interpolate import interp1d
 
@@ -20,18 +20,36 @@ class Interp:
         return self.value(x)
 
 def fft(f):
-    n = (len(f) // 2) - 1
+    n = len(f)
+    f[0] *= 0.5
+    f[-1] *= 0.5
     fft = []
-    for k in range(n):
-        t = np.linspace(0, 2 * np.pi * k, 2 * n + 2)
+    for k in range(n // 2):
+        t = np.linspace(0, 2 * np.pi * k, n)
         intsin = np.sum(f * np.sin(t))
-        a = intsin / n
+        a = 2 * intsin / n
         
         intcos = np.sum(f * np.cos(t))
-        b = intcos / n
-        print(k,a,b)
+        b = -2 * intcos / n
         fft += [complex(a,b)]
     return np.array(fft)
+
+def ifft(fft, n):
+    result = np.zeros(n)
+    for k in range(n // 2):
+        t = np.linspace(0, 2 * np.pi * k, n)
+        result += np.sin(t) * np.real(fft[k])
+        result += np.cos(t) * np.imag(fft[k])
+    return -np.flip(result)
+
+def mask(n, length, exclude_zero=False):
+    exclude_zero = int(exclude_zero)
+    x = np.linspace(exclude_zero, n // 2 + exclude_zero, n // 2, endpoint=False)
+    x_rev = np.flip(x)
+    x_new = np.concatenate([x, x_rev])
+    x_new[x_new > length] = length
+    x_new[x_new > n - length] = n - length
+    return x_new / length
 
 class FFT:
     '''Class for processing .wav files using Fast Fourier Transform.'''
@@ -39,7 +57,7 @@ class FFT:
         # ws - size of the window (precision of data) in samples
         # wch - amount of windows in a chunk (base block used for FFT)
         self.fname = fname
-        self.samplerate,self.data = read_wave(fname)
+        self.samplerate,self.data = wavfile.read(fname)
         self.process(ws, wch)
 
     def process(self, ws = 16, wch = 256):
@@ -58,8 +76,6 @@ class FFT:
         # File information
         self.length = len(self.data)                                        # length in samples
         self.time_length = self.length / self.samplerate                    # length in seconds
-        self.wnd_amount = self.length // self.window_size                   # length in windows
-        self.wnd_times = np.linspace(0, self.time_length, self.wnd_amount)  # starting time for each window
         
         self.process_file()
 
@@ -67,8 +83,7 @@ class FFT:
         '''Processes the file, determining frequency components for each window.'''
         
         self.freqs = np.linspace(0, self.samplerate / 2, self.chunk_size // 2, endpoint=False)[1:]     # freq scale for FFT
-        self.window_results = [np.zeros((self.chunk_size // 2) - 1,dtype=complex) for _ in range(self.wnd_amount)]    # FFT results
-        counts = np.zeros(self.wnd_amount)                              # how many chunks intersect with each window (needed for calculating average)
+        self.window_results = []    # FFT results
         prev_time = 0.99
 
         for offset in range(0,self.length - self.chunk_size,self.window_size): # Iterate through every chunk with the step of window_size
@@ -84,32 +99,27 @@ class FFT:
             # Run the FFT
             yf = fft(chunk)
 
-            # Save the results in respective windows
-            # Each chunk covers (windows_in_chunk) windows, starting from its index
-            wnd_offset = offset // self.window_size     # chunk index / first window index
-            for j in range(wnd_offset, min(self.wnd_amount, wnd_offset + self.windows_in_chunk)):
-                counts[j] += 1
-                self.window_results[j] += yf
+            # Save the results
+            self.window_results.append(yf)
+        
+        self.wnd_amount = len(self.window_results)                                                              # length in windows
+        self.wnd_times = np.linspace(0, self.wnd_amount * self.window_size / self.samplerate, self.wnd_amount)  # starting time for each window
 
-            # No future chunks will affect the window we just processed, so we can transform it into an Interp
-            self.transform(wnd_offset, min(self.windows_in_chunk,wnd_offset + 1))
-
-        # Transform the remaining windows
-        for i in range(self.wnd_amount - self.windows_in_chunk + 1,self.wnd_amount):
-            self.transform(i, counts[i])
-
-    def transform(self, offset, count):
-        '''Used inside process_file to turn an element of window_results into a more convenient to use structure
-        np.array of frequency amplitudes ---> Interp(freq) = amplitude'''
-        print(len(self.freqs),len(self.window_results[offset]), count)
-        if count == 0:
-            self.window_results[offset] = Interp(
-                self.freqs,
-                np.zeros(len(self.freqs)))
-        else:
-            self.window_results[offset] = Interp(
-                self.freqs,
-                self.window_results[offset] / count)
+    def ifft(self):
+        result = np.zeros(self.length)
+        m = mask(self.chunk_size, self.window_size) / (self.windows_in_chunk - 1)
+        print(m)
+        for i in range(self.wnd_amount):
+            print(i * self.window_size)
+            window_ifft = ifft(self.window_results[i], self.chunk_size) * m
+            tmp = np.concatenate([
+                np.zeros(i * self.window_size),
+                window_ifft,
+                np.zeros(self.length - i * self.window_size - self.chunk_size)])
+            result += tmp
+        result /= mask(self.length, self.chunk_size, True)
+        print(list(result))
+        return result / np.max(np.abs(result)) * 32767
 
     def get_freq_scale(self):
         return self.freqs
@@ -196,3 +206,8 @@ class FFT:
         self.freq_map = d
         return d
 
+if __name__ == '__main__':
+    ff = FFT('test_file.wav')
+    result = ff.ifft()
+    print(result)
+    wavfile.write('processed.wav', ff.samplerate, result.astype(np.int16))
