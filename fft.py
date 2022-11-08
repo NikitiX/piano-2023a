@@ -71,7 +71,7 @@ class FFT:
         # Caches for data retrieval functions
         self.interp_amps = {}       # amplitude_function
         self.interp_freqs = {}      # freq_function
-        self.freq_map = None        # freq_map (not implemeted yet)
+        self.freq_map = None        # freq_map
 
         # File information
         self.length = len(self.data)                                        # length in samples
@@ -138,7 +138,7 @@ class FFT:
         axis = np.linspace(0, self.time_length, self.length)
         for k in range(self.chunk_size // 2):
             print(k)
-            t = np.linspace(0, 2 * np.pi * k, self.length)
+            t = np.linspace(0, 2 * np.pi * k * self.length / self.chunk_size, self.length)
             tmp = np.sin(t + self.phase[k]) * self.cr_interp[k](axis)
             result += tmp
         return result
@@ -230,7 +230,12 @@ class FFT:
 
 if __name__ == '__main__':
     ff = FFT('test_file.wav', ws = 1000, wch = 10)
-    print(np.max(np.abs(ff.data)))
-    result = ff.ifft() * 32767
-    print(np.max(np.abs(result)))
+    
+    result = ff.ifft()
+    xf = np.linspace(0, ff.time_length, ff.length)
+    plt.plot(xf, ff.data)
+    plt.plot(xf, result)
+    plt.show()
+    if np.max(np.abs(result)) < 1:
+        result *= 32767
     wavfile.write('processed.wav', ff.samplerate, result.astype(np.int16))
