@@ -3,6 +3,7 @@ from scipy.io import wavfile
 from scipy.fft import rfft, rfftfreq
 from scipy.interpolate import interp1d
 from matplotlib import pyplot as plt
+from pprint import pprint
 
 class Interp:
     '''A basic class with interpolation/dictionary functionality.'''
@@ -53,9 +54,13 @@ def mask(n, length, exclude_zero=False):
 
 class FFT:
     '''Class for processing .wav files using Fast Fourier Transform.'''
-    def __init__(self, fname, ws = 16,wch = 256):
+    
+    def __init__(self, fname = None, ws = 16,wch = 256):
         # ws - size of the window (precision of data) in samples
         # wch - amount of windows in a chunk (base block used for FFT)
+        if fname is None:
+            # "empty" case; used in load()
+            return
         self.fname = fname
         self.samplerate,self.data = wavfile.read(fname)
         self.process(ws, wch)
@@ -108,11 +113,12 @@ class FFT:
             # Save the results
             self.window_results.append(yf)
             wnd_offset = offset // self.window_size     # chunk index / first window index
-            for j in range(wnd_offset, min(self.wnd_amount, wnd_offset + self.windows_in_chunk)):
-                counts[j] += 1
-                tmp = np.concatenate(
-                    [z] * j + [np.abs(yf).reshape((self.chunk_size // 2,1))] + [z] * (self.wnd_amount - 1 - j), axis=1)
-                self.chunk_results += tmp
+            wnd_cnt = min(self.wnd_amount - wnd_offset, self.windows_in_chunk)
+            tmp = np.concatenate(
+                    [z] * wnd_offset + [np.abs(yf).reshape((self.chunk_size // 2,1))] * wnd_cnt + [z] * (self.wnd_amount - wnd_offset - wnd_cnt), axis=1)
+            self.chunk_results += tmp
+            tmp2 = np.array([0] * wnd_offset + [1] * wnd_cnt + [0] * (self.wnd_amount - wnd_offset - wnd_cnt))
+            counts += tmp2
 
             # phase
             if offset == 0:
@@ -126,7 +132,12 @@ class FFT:
                 else:
                     self.chunk_results[i][j] /= counts[j]
         
-        print(self.phase)
+        self.interpolate()
+
+    def time_scale(self):
+        return np.linspace(0, self.time_length, self.length)
+
+    def interpolate(self):
         self.cr_interp = []
         for j in range(self.chunk_size // 2):
             #plt.plot(self.wnd_times,np.abs(self.chunk_results[j]))
@@ -135,107 +146,71 @@ class FFT:
 
     def ifft(self):
         result = np.zeros(self.length)
-        axis = np.linspace(0, self.time_length, self.length)
+        axis = self.time_scale()
         for k in range(self.chunk_size // 2):
+            if k % 100 != 0 and 100 % k != 0:
+                continue
             print(k)
             t = np.linspace(0, 2 * np.pi * k * self.length / self.chunk_size, self.length)
             tmp = np.sin(t + self.phase[k]) * self.cr_interp[k](axis)
             result += tmp
         return result
 
-    def get_freq_scale(self):
-        return self.freqs
+    def save(self, fname=None):
+        if fname is None:
+            fname = '.'.join(self.fname.split('.')[:-1]) + '.npy'
+        print('saving to',fname,'...')
+        with open(fname,'wb') as file:
+            np.save(file, np.array([fname]))
+            np.save(file, np.array([self.time_length]))
+            np.save(file, np.array([self.samplerate,
+                                          self.window_size,
+                                          self.windows_in_chunk,
+                                          self.chunk_size,
+                                          self.length,
+                                          self.wnd_amount]))
+            np.save(file, np.array(self.data))
+            np.save(file, self.wnd_times)
+            np.save(file, self.freqs)
+            np.save(file, np.array(self.window_results))
+            np.save(file, np.array(self.chunk_results))
+            np.save(file, np.array(self.phase))
 
-    def get_time_scale(self):
-        return self.wnd_times
-
-    def get_value(self, freq, time):
-        '''Returns the amplitude of an arbitrary frequency in an arbitrary moment of time.'''
-
-        '''
-                window
-        [-------------------------]
-        ^         ^               ^
-        |       time              |
-        |                         |
-    first_index          first_index + 1
-    first_time           second_time
-
-        To get the value within the window, we use linear interpolation using the values on the edges (this window and next window).
-        '''
-        
-        first_index = int(time // (self.window_size / self.samplerate))
-        first_time = first_index * self.window_size / self.samplerate
-        second_time = first_time + self.window_size / self.samplerate
-        count = (time - first_time) / (second_time - first_time)
-
-        # Using min to prevent the out of bounds exception
-        # The Interp classes in window_results cover the problem of getting an arbitrary frequency
-        res_1 = self.window_results[min(first_index, self.wnd_amount - 1)](freq)
-        res_2 = self.window_results[min(first_index + 1, self.wnd_amount - 1)](freq)
-        res = count * res_1 + (1 - count) * res_2
-        return res
-
-    def get_amplitude_function(self,freq):
-        '''Returns the function of amplitude from time for an arbitrary frequency.'''
-
-        # Use cache
-        if freq in self.interp_amps:
-            return self.interp_amps[freq]
-
-        ans = []     # amplitude for each window
-        for time in self.wnd_times:
-            # Fetch the answer using get_value
-            ans.append(self.get_value(freq, time))
-        
-        func = Interp(self.wnd_times, ans)
-        self.interp_amps[freq] = func       # save the result to cache
-        return func
-
-    def get_freq_function(self,time):
-        '''Returns the function of amplitude from frequency for an arbitrary time.'''
-
-        # Use cache
-        if time in self.interp_freqs:
-            return self.interp_freqs[time]
-        
-        ans = []    # amplitude for each frequency
-        for freq in self.freqs:
-            # Fetch the answer using get_value
-            ans.append(self.get_value(freq,time))
-
-        func = Interp(self.freqs,ans)
-        self.interp_freqs[time] = func       # save the result to cache
-        return func
-
-    def get_freq_map(self):
-        '''For each frequency, returns its function of amplitude from time.'''
-
-        # Use cache
-        if self.freq_map is not None:
-            return self.freq_map
-
-        d = {}
-        prev_freq = 999
-        for freq in self.freqs:
-            # Progress report
-            if freq % 1000 < prev_freq % 1000:
-                print(freq,'Hz')
-            prev_freq = freq
-            
-            d[freq] = self.get_amplitude_function(freq)
-            
-        self.freq_map = d
-        return d
+    @staticmethod
+    def load(fname):
+        obj = FFT()
+        with open(fname, 'rb') as file:
+            obj.fname = np.load(file)[0]
+            obj.time_length = np.load(file)[0]
+            obj.samplerate, obj.window_size, obj.windows_in_chunk, obj.chunk_size, obj.length, obj.wnd_amount = np.load(file)
+            obj.data = np.load(file)
+            obj.wnd_times = np.load(file)
+            obj.freqs = np.load(file)
+            obj.window_results = np.load(file)
+            obj.chunk_results = np.load(file)
+            obj.phase = np.load(file)
+        obj.interpolate()
+        return obj
 
 if __name__ == '__main__':
-    ff = FFT('test_file.wav', ws = 1000, wch = 10)
-    
-    result = ff.ifft()
+    '''
+    ff = FFT('piano_short.wav', ws = 1000, wch = 10)
+
     xf = np.linspace(0, ff.time_length, ff.length)
-    plt.plot(xf, ff.data)
-    plt.plot(xf, result)
+    plt.plot(xf, ff.cr_interp[99](xf))
     plt.show()
+    result = ff.ifft()
     if np.max(np.abs(result)) < 1:
         result *= 32767
+    wavfile.write('processed.wav', ff.samplerate, result.astype(np.int16))
+    '''
+    
+    ff = FFT.load('sin_waves2.npy')
+    xf = np.linspace(0, ff.time_length, ff.length)
+    result = ff.ifft()
+    if np.max(np.abs(result)) < 1:
+        result *= 32767
+    xf = ff.time_scale()
+    plt.plot(xf, result)
+    plt.show()
     wavfile.write('processed.wav', ff.samplerate, result.astype(np.int16))
